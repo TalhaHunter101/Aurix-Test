@@ -13,7 +13,7 @@ import time
 from typing import Dict, List, Any, Tuple
 from datetime import datetime
 from dotenv import load_dotenv
-import google.generativeai as genai
+import requests
 
 # Load API key from environment
 load_dotenv()
@@ -21,18 +21,22 @@ load_dotenv()
 class ContentModerator:
     def __init__(self):
         """Set up the AI model for content analysis"""
-        self.api_key = os.getenv('GEMINI_API_KEY')
+        self.api_key = os.getenv('GROQ_API_KEY')
         if not self.api_key:
-            raise ValueError("Please set GEMINI_API_KEY in your .env file")
+            raise ValueError("Please set GROQ_API_KEY in your .env file")
         
-        # Initialize Google's Gemini AI
-        genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel(
-            'gemini-1.5-flash',
-            generation_config={
-                'temperature': 0,
-            }
-        )
+        # Groq API configuration
+        self.api_url = "https://api.groq.com/openai/v1/chat/completions"
+        self.model_name = "llama-3.1-8b-instant"  # Fast model available in free tier
+        self.headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        # Rate limiting configuration for Groq free tier
+        self.rate_limit_delay = 1.0  # 1 second between requests (conservative for free tier)
+        self.max_requests_per_minute = 30  # Conservative limit for free tier
+        self.request_times = []  # Track request times for rate limiting
         
         # Master prompt for content analysis
         self.master_prompt = """You are an expert content moderator for Argos SmartSuite.
@@ -94,6 +98,105 @@ CRITICAL: Only include "unreadable": 1 in labels_spam_vector if Unreadable = YES
 
 Do not include the raw content or uid in the JSON output."""
 
+    def _enforce_rate_limit(self):
+        """Enforce rate limiting for Groq API"""
+        current_time = time.time()
+        
+        # Remove requests older than 1 minute
+        self.request_times = [t for t in self.request_times if current_time - t < 60]
+        
+        # If we're at the limit, wait
+        if len(self.request_times) >= self.max_requests_per_minute:
+            sleep_time = 60 - (current_time - self.request_times[0]) + 1
+            if sleep_time > 0:
+                print(f"⏳ Rate limit reached, waiting {sleep_time:.1f}s...")
+                time.sleep(sleep_time)
+                # Clean up old requests after waiting
+                current_time = time.time()
+                self.request_times = [t for t in self.request_times if current_time - t < 60]
+        
+        # Add minimum delay between requests
+        if self.request_times:
+            time_since_last = current_time - self.request_times[-1]
+            if time_since_last < self.rate_limit_delay:
+                sleep_time = self.rate_limit_delay - time_since_last
+                time.sleep(sleep_time)
+        
+        # Record this request
+        self.request_times.append(time.time())
+
+    def _call_groq_api(self, prompt: str, max_retries: int = 3) -> str:
+        """Call Groq API with proper error handling and retries"""
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are an expert content moderator. Always respond with valid JSON only."
+                },
+                {
+                    "role": "user", 
+                    "content": prompt
+                }
+            ],
+            "temperature": 0,
+            "max_tokens": 1000,
+            "stream": False
+        }
+        
+        for attempt in range(max_retries):
+            try:
+                # Enforce rate limiting
+                self._enforce_rate_limit()
+                
+                response = requests.post(
+                    self.api_url,
+                    headers=self.headers,
+                    json=payload,
+                    timeout=30
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    return result['choices'][0]['message']['content'].strip()
+                
+                elif response.status_code == 429:
+                    # Rate limit exceeded
+                    retry_after = int(response.headers.get('Retry-After', 60))
+                    print(f"⏳ Rate limit exceeded, waiting {retry_after}s...")
+                    time.sleep(retry_after)
+                    continue
+                
+                elif response.status_code == 400:
+                    # Bad request - don't retry
+                    error_msg = response.json().get('error', {}).get('message', 'Bad request')
+                    raise ValueError(f"Bad request: {error_msg}")
+                
+                else:
+                    # Other error - retry
+                    error_msg = response.json().get('error', {}).get('message', f'HTTP {response.status_code}')
+                    if attempt == max_retries - 1:
+                        raise Exception(f"API error after {max_retries} attempts: {error_msg}")
+                    print(f"⚠️ API error (attempt {attempt + 1}): {error_msg}")
+                    time.sleep(2 ** attempt)  # Exponential backoff
+                    continue
+                    
+            except requests.exceptions.Timeout:
+                if attempt == max_retries - 1:
+                    raise Exception("API request timed out after multiple attempts")
+                print(f"⚠️ Request timeout (attempt {attempt + 1}), retrying...")
+                time.sleep(2 ** attempt)
+                continue
+                
+            except requests.exceptions.RequestException as e:
+                if attempt == max_retries - 1:
+                    raise Exception(f"Request failed after {max_retries} attempts: {str(e)}")
+                print(f"⚠️ Request error (attempt {attempt + 1}): {str(e)}")
+                time.sleep(2 ** attempt)
+                continue
+        
+        raise Exception(f"Failed to get response after {max_retries} attempts")
+
     def load_csv_data(self, csv_path: str, limit: int = None) -> List[Dict[str, Any]]:
         """Load content data from CSV file with optional limit"""
         print(f"📖 Loading data from {csv_path}...")
@@ -113,17 +216,14 @@ Do not include the raw content or uid in the JSON output."""
         return data
 
     def analyze_content(self, content: str, uid: str, max_retries: int = 3) -> Dict[str, Any]:
-        """Analyze single content piece using Gemini with rate limiting and retry logic"""
+        """Analyze single content piece using Groq API with rate limiting and retry logic"""
         for attempt in range(max_retries):
             try:
                 # Format the prompt with content and UID
                 prompt = self.master_prompt.format(content=content, uid=uid)
                 
-                # Get response from Gemini
-                response = self.model.generate_content(prompt)
-                
-                # Extract JSON from response
-                response_text = response.text.strip()
+                # Get response from Groq API
+                response_text = self._call_groq_api(prompt, max_retries=1)  # Single retry per call
                 
                 # Find JSON in response (in case there's extra text)
                 start_idx = response_text.find('{')
@@ -211,7 +311,7 @@ Do not include the raw content or uid in the JSON output."""
                 
             except Exception as e:
                 error_msg = str(e)
-                if "429" in error_msg and "quota" in error_msg.lower():
+                if "Rate limit" in error_msg or "429" in error_msg:
                     # Rate limit exceeded - wait and retry
                     wait_time = 60 + (attempt * 10)  # 60s, 70s, 80s
                     print(f"⏳ Rate limit hit for {uid}, waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
@@ -273,7 +373,8 @@ Do not include the raw content or uid in the JSON output."""
     def process_batch(self, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Process all content pieces sequentially"""
         print(f"🔄 Processing {len(data)} content pieces sequentially...")
-        print(f"⚠️ Using sequential processing to avoid rate limits")
+        print(f"🤖 Using Groq API ({self.model_name}) with rate limiting")
+        print(f"⏳ Rate limit: {self.max_requests_per_minute} requests/minute, {self.rate_limit_delay}s between requests")
         
         results = []
         completed = 0
@@ -407,8 +508,36 @@ Do not include the raw content or uid in the JSON output."""
                 continue
                 
             accuracy = stats['correct'] / stats['total'] * 100
-            precision = stats['correct'] / stats['ai_yes'] * 100 if stats['ai_yes'] > 0 else 0
-            recall = stats['correct'] / stats['human_yes'] * 100 if stats['human_yes'] > 0 else 0
+            
+            # Calculate true positives, false positives, false negatives
+            true_positives = 0
+            false_positives = 0
+            false_negatives = 0
+            
+            # Count true positives (both AI and human said YES)
+            for result in ai_results:
+                uid = result['uid']
+                if uid in human_annotations:
+                    human = human_annotations[uid]
+                    ai_labels = result['labels_spam_vector']
+                    
+                    if category == 'labels_spam':
+                        ai_val = result['labels_spam']
+                        human_val = human['labels_spam']
+                    else:
+                        ai_val = ai_labels.get(category, 0)
+                        human_val = human.get(category, 0)
+                    
+                    if ai_val == 1 and human_val == 1:
+                        true_positives += 1
+                    elif ai_val == 1 and human_val == 0:
+                        false_positives += 1
+                    elif ai_val == 0 and human_val == 1:
+                        false_negatives += 1
+            
+            # Calculate precision and recall
+            precision = true_positives / (true_positives + false_positives) * 100 if (true_positives + false_positives) > 0 else 0
+            recall = true_positives / (true_positives + false_negatives) * 100 if (true_positives + false_negatives) > 0 else 0
             f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
             
             print(f"{category.replace('_', ' ').title():15} | "
@@ -553,7 +682,7 @@ def main():
                        help='Path to CSV file with content data')
     args = parser.parse_args()
     
-    print("🤖 Content Moderation Automation")
+    print("🤖 Content Moderation Automation with Groq")
     print("=" * 40)
     if args.limit:
         print(f"📊 Processing limit: {args.limit} content pieces")
