@@ -38,38 +38,15 @@ class ContentModerator:
         self.master_prompt = """You are an expert content moderator for Argos SmartSuite.
 Analyze the following content and answer these 5 questions with YES or NO:
 
-1. Keyword Spam: Reading the entire content, is there any Keyword Spam in the text? 
-Keyword spam involves the intentional placement of certain words on a web page to influence search engines or other websites that index the page. These terms will have little to no connection to the content of a page, these terms are used simply to attract more traffic to the website. These keywords may appear many times one after another, or appear in a list or group. You can identify this keyword spam by looking for repeated terms that appear out of context; unrelated to the text content on the page. If you see certain terms repeated many times in this manner, please select this category in your annotation.
+1. Keyword Spam: Reading the entire content, is there any Keyword Spam in the text? Keyword spam involves the intentional placement of certain words on a web page to influence search engines. These terms will have little to no connection to the content of a page, these terms are used simply to attract more traffic to the website. These keywords may appear many times one after another, or appear in a list or group. Look for repeated terms that appear out of context; unrelated to the text content on the page.
 
-Example: "Our site provides you with more streams and more links to see Catanzaro vs Lecce game than any other website. And now you can enjoy the Catanzaro vs Lecce live telecast stream. Enjoy watching Catanzaro vs Lecce online game using our live online streaming. If You are looking for watch online stream Lecce, watch online stream Catanzaro, livestreaming Lecce, live streaming Catanzaro, live stream Lecce, live stream Catanzaro..."
-Answer: Yes
+2. Malicious Links: Reading the entire content, is there any Malicious Links in the text? Answer YES if you see a document contains an external link that's obviously intended to deceive visitors. A deceptive web page will often suggest that if a visitor clicks on a link that they will win money, some prize, or be able to view exclusive content, but the real aim is to exploit the visitors. This includes suspected "phishing" where a visitor is tricked into revealing information like their login name and password, or financial information.
 
-2. Malicious Links: Reading the entire content, is there any Malicious Links in the text?
-You should answer Yes if you see a document contains an external link that's obviously intended to deceive visitors to the web page. A deceptive web page will often suggest that if a visitor clicks on a link that they will win money, some prize, or be able to view exclusive content, but the real aim is to exploit the visitors to the website. This includes suspected "phishing", where a visitor is tricked into revealing information like their login name and password, or financial information like credit card number. Use your best judgment when comparing an external link to the content of a document: if you believe an external link is intended to solicit the reader's personal or financial information please select this category in your annotation.
+3. Advertisements: Reading the entire content, is there any Advertisements in the text? We consider advertisements to be language within the text that encourage the reader to buy or use any product or service. Solicitation that encourages the reader to visit a business or download an app, as well as "want ads" looking for applicants to perform a job or service are also considered advertisements. Note: if the text describes a product and contains useful information about its specifications we do not consider this to be advertising.
 
-Example: "You're the 1 millionth visitor to this website! Click here to win a free iPad!"
-Answer: Yes
-Explanation: Here a malicious link to steal the reader's personal information is disguised as an enticing offer to win a prize.
+4. Wrong Language: Reading the entire content, the content is not in the target language. Answer YES only if the content is not in English and only contains text in another language. Answer NO if the content is in English and only contains a small amount of text in another language, but is otherwise in English.
 
-3. Advertisements: Reading the entire content, is there any Advertisements in the text?
-We consider advertisements to be language within the text of a web page that encourage the reader to buy or use any product or service. Solicitation that encourages the reader to visit a business or download an app, as well as "want ads" looking for applicants to perform a job or service are also considered to be advertisements.
-
-Note that if the text describes a product and contains useful information about its specifications we do not consider this to be advertising and you should not select Yes in your annotation.
-
-Example: "Cozy Inn $99 ($247). Excellent location close to the water. Walk to restaurants and the beach. This deal won't last, click here to book now!"
-Answer: Yes
-
-4. Wrong Language: Reading the entire content, the content is not in the target language. Yes or No?
-The text documents should be in English.
-- Answer YES if the content is not in English and only contains text in another language
-- Answer NO if the content is in English and only contains a small amount of text in another language, but is otherwise in English
-
-5. Unreadable: Reading the content, is the content not readable or incomprehensible?
-Some contents may be mal-encoded (where text may appear as strange characters like "ÃƒÆ"), entirely missing (e.g. a blank document ""), or otherwise unreadable. In these cases:
-- Answer YES if the content is unreadable or if the text file is entirely empty or you cannot open the document due to some error
-- Answer NO if the content is readable and there is any amount of readable text in English
-
-6. Confidence Score: How confident are you with the answers provided? Give me a score from 1 to 5 where 1 is the lowest confidence and 5 is the highest.
+5. Unreadable: Reading the content, is the content not readable or incomprehensible? Answer YES if the content is unreadable, mal-encoded (strange characters), entirely missing, blank document, or you cannot open the document due to some error. Answer NO if the content is readable and there is any amount of readable text in English.
 
 IMPORTANT RULES:
 - If Wrong Language = YES, then all other answers = NO
@@ -85,8 +62,7 @@ Return ONLY a JSON object in this exact format:
     "keyword_spam": 0,
     "malicious_links": 0,
     "ads": 0
-  }},
-  "confidence_score": 5
+  }}
 }}
 
 CRITICAL: Only include "wrong_language": 1 in labels_spam_vector if Wrong Language = YES. Do NOT include this field if it's NO.
@@ -138,15 +114,6 @@ Do not include the raw content or uid in the JSON output."""
                 # Attach uid/content locally and normalize fields
                 result['uid'] = uid
                 result['content'] = content
-
-                # Handle confidence score
-                confidence_score = result.get('confidence_score', 5)
-                if isinstance(confidence_score, str):
-                    try:
-                        confidence_score = int(confidence_score)
-                    except ValueError:
-                        confidence_score = 5
-                result['confidence_score'] = max(1, min(5, confidence_score))  # Clamp between 1-5
 
                 labels = result.setdefault('labels_spam_vector', {})
 
@@ -237,8 +204,7 @@ Do not include the raw content or uid in the JSON output."""
                 "keyword_spam": 0,
                 "malicious_links": 0,
                 "ads": 0
-            },
-            "confidence_score": 1  # Low confidence for failed analysis
+            }
         }
 
     def apply_hierarchical_rules(self, result: Dict[str, Any]) -> Dict[str, Any]:
@@ -296,8 +262,7 @@ Do not include the raw content or uid in the JSON output."""
                         "keyword_spam": 0,
                         "malicious_links": 0,
                         "ads": 0
-                    },
-                    "confidence_score": 1  # Low confidence for failed analysis
+                    }
                 })
         
         print("✅ Processing complete!")
@@ -428,87 +393,6 @@ Do not include the raw content or uid in the JSON output."""
             'category_stats': category_stats
         }
 
-    def validate_json_schema(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Validate that results match the expected JSON schema format"""
-        print("\n🔍 VALIDATING JSON SCHEMA FORMAT")
-        print("=" * 50)
-        
-        schema_issues = []
-        total_results = len(results)
-        
-        for i, result in enumerate(results):
-            issues = []
-            
-            # Check required fields
-            required_fields = ['uid', 'content', 'labels_spam', 'labels_spam_vector']
-            for field in required_fields:
-                if field not in result:
-                    issues.append(f"Missing required field: {field}")
-            
-            # Check labels_spam_vector structure
-            if 'labels_spam_vector' in result:
-                labels = result['labels_spam_vector']
-                
-                # Check required spam categories
-                required_spam_cats = ['keyword_spam', 'malicious_links', 'ads']
-                for cat in required_spam_cats:
-                    if cat not in labels:
-                        issues.append(f"Missing required spam category: {cat}")
-                    elif not isinstance(labels[cat], int) or labels[cat] not in [0, 1]:
-                        issues.append(f"Invalid value for {cat}: {labels[cat]} (must be 0 or 1)")
-                
-                # Check conditional fields
-                wrong_lang = labels.get('wrong_language', 0)
-                unreadable = labels.get('unreadable', 0)
-                
-                if wrong_lang == 1 and unreadable == 1:
-                    issues.append("Both wrong_language and unreadable cannot be 1 simultaneously")
-                
-                # Check that wrong_language/unreadable are only present when 1
-                if wrong_lang == 0 and 'wrong_language' in labels:
-                    issues.append("wrong_language should not be present when value is 0")
-                
-                if unreadable == 0 and 'unreadable' in labels:
-                    issues.append("unreadable should not be present when value is 0")
-            
-            # Check labels_spam value
-            if 'labels_spam' in result:
-                if not isinstance(result['labels_spam'], int) or result['labels_spam'] not in [0, 1]:
-                    issues.append(f"Invalid labels_spam value: {result['labels_spam']} (must be 0 or 1)")
-            
-            # Check confidence score (optional but if present should be 1-5)
-            if 'confidence_score' in result:
-                conf = result['confidence_score']
-                if not isinstance(conf, int) or conf < 1 or conf > 5:
-                    issues.append(f"Invalid confidence_score: {conf} (must be 1-5)")
-            
-            if issues:
-                schema_issues.append({
-                    'index': i,
-                    'uid': result.get('uid', 'unknown')[:8],
-                    'issues': issues
-                })
-        
-        # Report results
-        if schema_issues:
-            print(f"❌ Found {len(schema_issues)} results with schema issues:")
-            for issue in schema_issues[:5]:  # Show first 5 issues
-                print(f"  Result {issue['index']} ({issue['uid']}): {', '.join(issue['issues'])}")
-            if len(schema_issues) > 5:
-                print(f"  ... and {len(schema_issues) - 5} more issues")
-        else:
-            print("✅ All results match expected JSON schema format")
-        
-        print(f"Schema validation: {total_results - len(schema_issues)}/{total_results} results valid")
-        print("=" * 50)
-        
-        return {
-            'total_results': total_results,
-            'valid_results': total_results - len(schema_issues),
-            'schema_issues': schema_issues,
-            'schema_valid': len(schema_issues) == 0
-        }
-
     def generate_summary(self, results: List[Dict[str, Any]]):
         """Generate processing summary"""
         total = len(results)
@@ -520,11 +404,6 @@ Do not include the raw content or uid in the JSON output."""
         wrong_language = sum(1 for r in results if r['labels_spam_vector'].get('wrong_language', 0) == 1)
         unreadable = sum(1 for r in results if r['labels_spam_vector'].get('unreadable', 0) == 1)
         
-        # Confidence score statistics
-        confidence_scores = [r.get('confidence_score', 1) for r in results]
-        avg_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0
-        low_confidence = sum(1 for score in confidence_scores if score <= 2)
-        
         print("\n📊 PROCESSING SUMMARY")
         print("=" * 50)
         print(f"Total content pieces: {total}")
@@ -534,9 +413,6 @@ Do not include the raw content or uid in the JSON output."""
         print(f"  - Advertisements: {ads}")
         print(f"  - Wrong language: {wrong_language}")
         print(f"  - Unreadable: {unreadable}")
-        print(f"\nConfidence Analysis:")
-        print(f"  - Average confidence: {avg_confidence:.1f}/5")
-        print(f"  - Low confidence (≤2): {low_confidence} ({low_confidence/total*100:.1f}%)")
         print("=" * 50)
 
 def main():
@@ -546,8 +422,6 @@ def main():
                        help='Limit number of content pieces to process (e.g., 50)')
     parser.add_argument('--validate', '-v', action='store_true', 
                        help='Validate results against human annotations')
-    parser.add_argument('--schema-check', action='store_true', 
-                       help='Validate JSON schema format (always enabled)')
     parser.add_argument('--csv', type=str, 
                        default="proj-data/spam_pilot_100_feedback x linguist.csv",
                        help='Path to CSV file with content data')
@@ -578,9 +452,6 @@ def main():
         
         # Generate summary
         moderator.generate_summary(results)
-        
-        # Validate JSON schema format
-        schema_validation = moderator.validate_json_schema(results)
         
         # Validation against human annotations
         if args.validate:

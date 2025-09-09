@@ -1,0 +1,43 @@
+{
+  "overall_accuracy": 66.66666666666666,
+  "total_samples": 15,
+  "correct_predictions": 10,
+  "category_stats": {
+    "keyword_spam": {
+      "correct": 13,
+      "total": 15,
+      "ai_yes": 1,
+      "human_yes": 3
+    },
+    "malicious_links": {
+      "correct": 15,
+      "total": 15,
+      "ai_yes": 0,
+      "human_yes": 0
+    },
+    "ads": {
+      "correct": 12,
+      "total": 15,
+      "ai_yes": 5,
+      "human_yes": 4
+    },
+    "wrong_language": {
+      "correct": 15,
+      "total": 15,
+      "ai_yes": 0,
+      "human_yes": 0
+    },
+    "unreadable": {
+      "correct": 15,
+      "total": 15,
+      "ai_yes": 0,
+      "human_yes": 0
+    },
+    "labels_spam": {
+      "correct": 10,
+      "total": 15,
+      "ai_yes": 5,
+      "human_yes": 0
+    }
+  }
+}
