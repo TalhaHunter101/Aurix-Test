@@ -58,9 +58,25 @@ Explanation: Here a malicious link to steal the reader's personal information is
 3. Advertisements: Reading the entire content, is there any Advertisements in the text?
 We consider advertisements to be language within the text of a web page that encourage the reader to buy or use any product or service. Solicitation that encourages the reader to visit a business or download an app, as well as "want ads" looking for applicants to perform a job or service are also considered to be advertisements.
 
+IMPORTANT: Look for ANY commercial content including:
+- Product listings with prices, sizes, specifications
+- Shop/store information and contact details
+- Shipping information and purchase instructions
+- Copyright notices from commercial entities
+- Promotional language encouraging visits or engagement
+- Business contact information or "contact us" messages
+- Any content that appears to be from an e-commerce or commercial website
+
 Note that if the text describes a product and contains useful information about its specifications we do not consider this to be advertising and you should not select Yes in your annotation.
 
-Example: "Cozy Inn $99 ($247). Excellent location close to the water. Walk to restaurants and the beach. This deal won't last, click here to book now!"
+Examples:
+"Cozy Inn $99 ($247). Excellent location close to the water. Walk to restaurants and the beach. This deal won't last, click here to book now!"
+Answer: Yes
+
+"Size Name Dress length Shoulder width Chest length Arm length 1 75.0cm 61.0cm 130.0cm 30.0cm 2 85.0cm 65.0cm 138.0cm 35.0cm ※ Please use this size for reference. Please contact the seller if you have any questions before purchasing the item. Shipping - Shipping anywhere in the world! Hello! Thank you for visiting my shop 'Sui.!' If you have any questions, please send me a message by clicking the 'Questions?' button."
+Answer: Yes
+
+"©2018 BUYMA Inc. All right reserved."
 Answer: Yes
 
 4. Wrong Language: Reading the entire content, the content is not in the target language. Yes or No?
